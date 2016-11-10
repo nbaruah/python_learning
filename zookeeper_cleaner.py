@@ -1,9 +1,16 @@
+__author__ = 'nbaruah'
+
 import logging
 import os
 import sys
+from optparse import OptionParser
+
+bin_dir = os.path.dirname(os.path.realpath(__file__))
+lib_path = os.path.join(bin_dir, 'setup', 'scripts')
+sys.path.append(lib_path)
+
 import constants
 import util_functions
-from optparse import OptionParser
 from kazoo.client import KazooClient
 
 # -e environment [Required]
@@ -14,7 +21,6 @@ from kazoo.client import KazooClient
 # -n and -a are mutually exclusive
 # Use -c with -n option only
 
-#constants
 OPT_ENV = "-e"
 OPT_PARENT_NODE = "-p" 
 OPT_NODES = "-n"
@@ -28,36 +34,36 @@ def main():
     (options, args) = parser_obj.parse_args()
 
     try:
-    	configure_logging(options)
+        configure_logging(options)
         validate_inputs(options)
     except Exception as e:
         logging.error(e)
         sys.exit(-1)
 
     env = options.env
-    build_dir = get_build_dir()
+    build_dir = os.path.dirname(bin_dir)
     config_dir = os.path.join(build_dir, constants.CONFIG_DIR)
     properties = util_functions.load_properties(config_dir, env)
     zk_conn_string = properties.get(constants.ZK_CON_STRING)
     zk_base_path = properties.get(constants.ZK_LAYOUT_BASE) + "/" + env + "/" + options.p_node
 
     try:
-    	if options.all_reset:
-    		logging.info('Resetting all nodes under %s', zk_base_path)
-    		child_nodes = get_child_nodes(zk_base_path, zk_conn_string)
-    		reset_znodes(zk_base_path, child_nodes, zk_conn_string)
-    	elif options.nodes and not options.complement:
-    		logging.info('Resetting node(s) [%s]', options.nodes)
-    		child_nodes = set(options.nodes.split(","))
-    		reset_znodes(zk_base_path, child_nodes, zk_conn_string)
-    	elif options.nodes and options.complement:
-    		all_child_nodes = set(get_child_nodes(zk_base_path, zk_conn_string))
-    		excluded_child_nodes = set(options.nodes.split(","))
-    		child_nodes = all_child_nodes - excluded_child_nodes
-    		logging.info('Resetting node(s) [%s]', ','.join(child_nodes))
-    		reset_znodes(zk_base_path, child_nodes, zk_conn_string)
+        if options.all_reset:
+            logging.info('Resetting all nodes under %s', zk_base_path)
+            child_nodes = get_child_nodes(zk_base_path, zk_conn_string)
+            reset_znodes(zk_base_path, child_nodes, zk_conn_string)
+        elif options.nodes and not options.complement:
+            logging.info('Resetting node(s) [%s]', options.nodes)
+            child_nodes = set(options.nodes.split(","))
+            reset_znodes(zk_base_path, child_nodes, zk_conn_string)
+        elif options.nodes and options.complement:
+            all_child_nodes = set(get_child_nodes(zk_base_path, zk_conn_string))
+            excluded_child_nodes = set(options.nodes.split(","))
+            child_nodes = all_child_nodes - excluded_child_nodes
+            logging.info('Resetting node(s) [%s]', ','.join(child_nodes))
+            reset_znodes(zk_base_path, child_nodes, zk_conn_string)
     except Exception as e:
-    	logging.error(e)
+        logging.error(e)
 
 def setup_parser():
     parser_obj = OptionParser()
@@ -70,28 +76,23 @@ def setup_parser():
     return parser_obj
 
 def configure_logging(options):
-	log_level = options.log_level
-	numeric_level = getattr(logging, log_level.upper())
-	if not isinstance(numeric_level, int):
-		raise ValueError('Invalid log level: %s' % log_level)
-	logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=numeric_level)
-
-def get_build_dir():
-    dirname = os.path.dirname
-    script_dir = dirname(os.path.realpath(__file__))
-    return dirname(dirname(dirname(script_dir)))
+    log_level = options.log_level
+    numeric_level = getattr(logging, log_level.upper())
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % log_level)
+    logging.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=numeric_level)
 
 def validate_inputs(options):
-	if options.env is None:
-		raise Exception(" -e (Environment) is required argument")
-	if options.p_node is None:
-		raise Exception(" -p (Parent-node name) is required argument")
-	if options.p_node not in PNODE_LIST:
-		raise Exception(" Invalid Parent-node. Possible parent nodes are: [" + ', '.join(PNODE_LIST) + ']')
-	if not options.nodes and not options.all_reset:
-		raise Exception(" Provide either -a or -n ")
-	if options.nodes and options.all_reset:
-		raise Exception(" Options -n and -a are mutually exclusive")
+    if options.env is None:
+        raise Exception(" -e (Environment) is required argument")
+    if options.p_node is None:
+        raise Exception(" -p (Parent-node name) is required argument")
+    if options.p_node not in PNODE_LIST:
+        raise Exception(" Invalid Parent-node. Possible parent nodes are: [" + ', '.join(PNODE_LIST) + ']')
+    if not options.nodes and not options.all_reset:
+        raise Exception(" Provide either -a or -n ")
+    if options.nodes and options.all_reset:
+        raise Exception(" Options -n and -a are mutually exclusive")
 
 def get_child_nodes(zk_base_path, zk_conn_string):
     try:
@@ -111,10 +112,10 @@ def reset_znodes(zk_base_path, child_nodes_set, zk_conn_string):
         zk = KazooClient(hosts=zk_conn_string)
         zk.start()
         for child in child_nodes_set:
-        	path = zk_base_path + "/" + child.strip()
-        	if zk.exists(path):
-        		zk.set(path, b"%s" % constants.ZK_DEFAULT_NODE_VALUE)
-        		logging.info('Reset successful for zk-node %s', path)
+            path = zk_base_path + "/" + child.strip()
+            if zk.exists(path):
+                zk.set(path, b"%s" % constants.ZK_DEFAULT_NODE_VALUE)
+                logging.info('Reset successful for zk-node %s', path)
     except Exception:
         logging.error('Error occured while resetting nodes')
         raise
